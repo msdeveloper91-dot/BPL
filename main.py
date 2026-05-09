@@ -2,21 +2,17 @@ import os
 from fastapi import FastAPI, HTTPException
 from supabase import create_client, Client
 from pydantic import BaseModel
-from typing import List
 
 # 1. Setup Supabase Connection
-# Render ya Termux ke environment variables se keys uthayega
-URL: str = os.environ.get("SUPABASE_URL")
-KEY: str = os.environ.get("SUPABASE_KEY")
-
-if not URL or not KEY:
-    raise ValueError("SUPABASE_URL ya SUPABASE_KEY set nahi hai!")
+# Maine aapki di hui keys yahan direct set kar di hain
+URL: str = "https://cppbrysqlzormgpbzhee.supabase.co"
+KEY: str = "sb_publishable_LplnzMp8DZ3wcFURl40BjA_YL1xykk6"
 
 supabase: Client = create_client(URL, KEY)
 
-app = FastAPI(title="BPL Backend - Bharat Premier League")
+app = FastAPI(title="BPL Backend")
 
-# 2. Data Models (Jo data APK se aayega)
+# 2. Bidding Model
 class BidRequest(BaseModel):
     player_id: int
     user_id: str
@@ -26,53 +22,50 @@ class BidRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "Online", "game": "BPL - Bharat Premier League"}
-
-# --- Player Management ---
+    return {"status": "Online", "msg": "Welcome to Bharat Premier League Server"}
 
 @app.get("/players/all")
 def get_all_players():
-    """Saare players ki list Supabase se fetch karega"""
+    """Database se saare players ki list laayega"""
     try:
+        # Note: Table ka naam 'players' hona chahiye (small letters)
         response = supabase.table("players").select("*").execute()
-        return {"status": "success", "data": response.data}
+        return response.data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# --- Auction & Bidding Logic ---
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
 
 @app.post("/auction/bid")
 def place_bid(bid: BidRequest):
-    """Bidding logic: Token check aur Real-time update"""
+    """User ke tokens check karega aur bid update karega"""
     try:
-        # 1. User ke tokens check karein
-        user_data = supabase.table("users").select("tokens").eq("id", bid.user_id).single().execute()
-        if not user_data.data or user_data.data['tokens'] < bid.bid_amount:
-            return {"status": "error", "message": "Aapke paas paryapt tokens nahi hain!"}
-
-        # 2. Check karein ki bid current price se zyada hai ya nahi
-        # (Yahan aap live_auction table call kar sakte hain)
+        # 1. User ke tokens check karein (Default 100000 agar table bani hai)
+        user = supabase.table("users").select("tokens").eq("id", bid.user_id).single().execute()
         
-        # 3. Update Auction Table
-        # Kyunki Supabase mein Realtime ON hai, update hote hi sabhi APKs mein price badal jayega
-        update_response = supabase.table("live_auction").upsert({
+        if not user.data or user.data['tokens'] < bid.bid_amount:
+            return {"status": "error", "message": "Tokens kam hain!"}
+
+        # 2. Auction table update karein (Taaki Real-time update ho)
+        # Table 'live_auction' honi chahiye
+        supabase.table("live_auction").upsert({
             "player_id": bid.player_id,
             "current_bid": bid.bid_amount,
             "highest_bidder": bid.user_id
         }).execute()
 
-        return {"status": "success", "message": f"Boli lag gayi: {bid.bid_amount}", "data": update_response.data}
-
+        return {"status": "success", "msg": "Boli lag gayi!"}
+    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": "error", "detail": str(e)}
 
-# --- User Profile ---
-
-@app.get("/user/{user_id}")
-def get_user_stats(user_id: str):
-    """User ke tokens aur team stats fetch karega"""
+# --- User Registration (Tokens dene ke liye) ---
+@app.post("/user/register")
+def register_user(user_id: str, username: str):
     try:
-        response = supabase.table("users").select("*").eq("id", user_id).single().execute()
-        return {"status": "success", "data": response.data}
-    except Exception as e:
-        return {"status": "error", "message": "User nahi mila"}
+        supabase.table("users").insert({
+            "id": user_id,
+            "username": username,
+            "tokens": 100000  # Welcome Bonus
+        }).execute()
+        return {"msg": "User Registered with 1 Lakh tokens!"}
+    except:
+        return {"msg": "User already exists"}
