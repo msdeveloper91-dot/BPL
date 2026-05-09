@@ -2,8 +2,8 @@ import os
 from supabase import create_client
 
 # Environment variables (Jo aapne Render/Termux mein set kiye honge)
-url = "YOUR_SUPABASE_URL"
-key = "YOUR_SUPABASE_KEY"
+url = "https://cppbrysqlzormgpbzhee.supabase.co/rest/v1/"
+key = "sb_publishable_LplnzMp8DZ3wcFURl40BjA_YL1xykk6"
 supabase = create_client(url, key)
 
 # Sabhi IPL/BPL players ki list
